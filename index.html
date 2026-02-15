@@ -2,7 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
     <title>AR Self-Test</title>
     <style>
       :root {
@@ -60,6 +63,19 @@
         font-weight: 600;
       }
 
+      .diag {
+        margin-top: 0.5rem;
+        padding: 0.45rem 0.55rem;
+        border-radius: 8px;
+        background: rgba(133, 204, 255, 0.08);
+        border: 1px solid rgba(133, 204, 255, 0.28);
+        color: #a8d9ff;
+        font-size: 0.75rem;
+        line-height: 1.35;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        white-space: pre-wrap;
+      }
+
       .hint {
         color: var(--warn);
         font-size: 0.82rem;
@@ -88,8 +104,8 @@
         background: #000;
       }
     </style>
-    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.min.js"></script>
+    <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+    <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.7/aframe/build/aframe-ar.js"></script>
   </head>
   <body>
     <div class="hud">
@@ -100,13 +116,14 @@
         <a href="https://github.com/AR-js-org/AR.js/blob/master/data/images/hiro.png" target="_blank" rel="noopener noreferrer">hiro.png</a>.
       </p>
       <div id="status" class="status">Status: Initializing camera...</div>
+      <div id="diag" class="diag">diag: starting...</div>
     </div>
 
     <a-scene
       vr-mode-ui="enabled: false"
-      renderer="logarithmicDepthBuffer: true"
+      renderer="alpha: true; antialias: true; logarithmicDepthBuffer: true"
       embedded
-      arjs="sourceType: webcam; trackingMethod: best; debugUIEnabled: false;"
+      arjs="sourceType: webcam; trackingMethod: best; videoTexture: true; debugUIEnabled: false;"
     >
       <a-marker id="hiroMarker" preset="hiro">
         <a-box position="0 0.5 0" material="color: #20e3b2; opacity: 0.9;"></a-box>
@@ -124,6 +141,7 @@
 
     <script>
   const statusEl = document.getElementById("status");
+  const diagEl = document.getElementById("diag");
   const marker = document.getElementById("hiroMarker");
   const scene = document.querySelector("a-scene");
 
@@ -144,6 +162,20 @@
     if (cameraStarted) return;
     cameraStarted = true;
     setStatus("Camera is on. Point at Hiro marker to test.");
+  }
+
+  function updateDiagnostics(extra = "") {
+    const video = document.querySelector("video");
+    const track = video?.srcObject?.getVideoTracks?.()[0];
+    const lines = [
+      `orientation=${window.innerWidth > window.innerHeight ? "landscape" : "portrait"}`,
+      `viewport=${window.innerWidth}x${window.innerHeight}`,
+      `video=${video ? `${video.videoWidth}x${video.videoHeight} rs:${video.readyState}` : "missing"}`,
+      `track=${track ? `${track.readyState} ${track.enabled ? "enabled" : "disabled"}` : "missing"}`,
+      `sceneLoaded=${scene?.hasLoaded ? "yes" : "no"}`,
+    ];
+    if (extra) lines.push(`event=${extra}`);
+    diagEl.textContent = `diag:\n${lines.join("\n")}`;
   }
 
   marker.addEventListener("markerFound", () => {
@@ -169,6 +201,8 @@
     video.setAttribute("playsinline", "");
     video.setAttribute("webkit-playsinline", "");
     video.muted = true;
+    video.style.objectFit = "cover";
+    video.style.transform = "translateZ(0)";
   }
 
   function forceArResize() {
@@ -198,6 +232,7 @@
       setTimeout(() => {
         normalizeVideoForIOS();
         forceArResize();
+        updateDiagnostics("loaded");
         const video = document.querySelector("video");
         if (video && video.readyState >= 2) {
           markCameraStarted();
@@ -207,6 +242,7 @@
     target.addEventListener("camera-error", (event) => {
       const message = event?.detail?.message || "Camera error. Check browser/site camera permissions.";
       setStatus(message, false);
+      updateDiagnostics(`camera-error:${message}`);
     });
   });
 
@@ -216,6 +252,7 @@
       setTimeout(() => {
         normalizeVideoForIOS();
         forceArResize();
+        updateDiagnostics(`viewport-change@${delayMs}ms`);
       }, delayMs);
     });
   }
@@ -236,6 +273,7 @@
     if (running) {
       normalizeVideoForIOS();
       forceArResize();
+      updateDiagnostics("stream-live");
       markCameraStarted();
       clearInterval(checkTimer);
       return;
@@ -243,9 +281,12 @@
 
     if (checks >= 12 && !cameraStarted) {
       setStatus("Waiting for camera permission or camera startup...", false);
+      updateDiagnostics("startup-timeout");
       clearInterval(checkTimer);
     }
   }, 1000);
+
+  setInterval(() => updateDiagnostics(), 1200);
 </script>
   </body>
 </html>

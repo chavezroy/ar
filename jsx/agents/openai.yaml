@@ -1,0 +1,4 @@
+interface:
+  display_name: "JSX"
+  short_description: "Build and edit React JSX components"
+  default_prompt: "Use this skill to create, refactor, and debug .jsx components with accessible, maintainable patterns."

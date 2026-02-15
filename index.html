@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AR Self-Test</title>
+    <style>
+      :root {
+        --bg: #08121f;
+        --card: rgba(5, 12, 24, 0.82);
+        --text: #d9ecff;
+        --accent: #20e3b2;
+        --warn: #ffd166;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+        color: var(--text);
+        background: radial-gradient(circle at 20% 20%, #15314f, var(--bg) 65%);
+      }
+
+      .hud {
+        position: fixed;
+        top: 0.75rem;
+        left: 0.75rem;
+        z-index: 5;
+        width: min(94vw, 390px);
+        background: var(--card);
+        border: 1px solid rgba(217, 236, 255, 0.25);
+        border-radius: 12px;
+        padding: 0.9rem;
+        backdrop-filter: blur(4px);
+      }
+
+      h1 {
+        margin: 0 0 0.35rem 0;
+        font-size: 1.05rem;
+        letter-spacing: 0.02em;
+      }
+
+      p {
+        margin: 0.35rem 0;
+        font-size: 0.9rem;
+        line-height: 1.35;
+      }
+
+      .status {
+        margin-top: 0.6rem;
+        padding: 0.5rem 0.6rem;
+        border-radius: 8px;
+        background: rgba(32, 227, 178, 0.12);
+        border: 1px solid rgba(32, 227, 178, 0.4);
+        color: var(--accent);
+        font-weight: 600;
+      }
+
+      .hint {
+        color: var(--warn);
+        font-size: 0.82rem;
+      }
+
+      a {
+        color: #85ccff;
+      }
+    </style>
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.min.js"></script>
+  </head>
+  <body>
+    <div class="hud">
+      <h1>AR Self-Test</h1>
+      <p>Allow camera access, then point at a Hiro marker.</p>
+      <p class="hint">
+        If you need a marker, print or display one from
+        <a href="https://github.com/AR-js-org/AR.js/blob/master/data/images/hiro.png" target="_blank" rel="noopener noreferrer">hiro.png</a>.
+      </p>
+      <div id="status" class="status">Status: Initializing camera...</div>
+    </div>
+
+    <a-scene
+      vr-mode-ui="enabled: false"
+      renderer="logarithmicDepthBuffer: true"
+      embedded
+      arjs="sourceType: webcam; trackingMethod: best; debugUIEnabled: false;"
+    >
+      <a-marker id="hiroMarker" preset="hiro">
+        <a-box position="0 0.5 0" material="color: #20e3b2; opacity: 0.9;"></a-box>
+        <a-text
+          value="AR OK"
+          align="center"
+          position="0 1.2 0"
+          color="#ffffff"
+          scale="1.2 1.2 1.2"
+        ></a-text>
+      </a-marker>
+
+      <a-entity camera></a-entity>
+    </a-scene>
+
+    <script>
+      const statusEl = document.getElementById("status");
+      const marker = document.getElementById("hiroMarker");
+
+      function setStatus(text, ok = true) {
+        statusEl.textContent = "Status: " + text;
+        statusEl.style.color = ok ? "var(--accent)" : "var(--warn)";
+        statusEl.style.borderColor = ok
+          ? "rgba(32, 227, 178, 0.4)"
+          : "rgba(255, 209, 102, 0.55)";
+        statusEl.style.background = ok
+          ? "rgba(32, 227, 178, 0.12)"
+          : "rgba(255, 209, 102, 0.12)";
+      }
+
+      marker.addEventListener("markerFound", () => {
+        setStatus("Marker detected. AR tracking works.");
+      });
+
+      marker.addEventListener("markerLost", () => {
+        setStatus("Marker lost. Re-center marker in view.", false);
+      });
+
+      window.addEventListener("arjs-video-loaded", () => {
+        setStatus("Camera is on. Point at Hiro marker to test.");
+      });
+
+      setTimeout(() => {
+        if (statusEl.textContent.includes("Initializing")) {
+          setStatus("Waiting for camera permission or camera startup...", false);
+        }
+      }, 4000);
+    </script>
+  </body>
+</html>

@@ -103,37 +103,83 @@
     </a-scene>
 
     <script>
-      const statusEl = document.getElementById("status");
-      const marker = document.getElementById("hiroMarker");
+  const statusEl = document.getElementById("status");
+  const marker = document.getElementById("hiroMarker");
+  const scene = document.querySelector("a-scene");
 
-      function setStatus(text, ok = true) {
-        statusEl.textContent = "Status: " + text;
-        statusEl.style.color = ok ? "var(--accent)" : "var(--warn)";
-        statusEl.style.borderColor = ok
-          ? "rgba(32, 227, 178, 0.4)"
-          : "rgba(255, 209, 102, 0.55)";
-        statusEl.style.background = ok
-          ? "rgba(32, 227, 178, 0.12)"
-          : "rgba(255, 209, 102, 0.12)";
-      }
+  function setStatus(text, ok = true) {
+    statusEl.textContent = "Status: " + text;
+    statusEl.style.color = ok ? "var(--accent)" : "var(--warn)";
+    statusEl.style.borderColor = ok
+      ? "rgba(32, 227, 178, 0.4)"
+      : "rgba(255, 209, 102, 0.55)";
+    statusEl.style.background = ok
+      ? "rgba(32, 227, 178, 0.12)"
+      : "rgba(255, 209, 102, 0.12)";
+  }
 
-      marker.addEventListener("markerFound", () => {
-        setStatus("Marker detected. AR tracking works.");
-      });
+  let cameraStarted = false;
 
-      marker.addEventListener("markerLost", () => {
-        setStatus("Marker lost. Re-center marker in view.", false);
-      });
+  function markCameraStarted() {
+    if (cameraStarted) return;
+    cameraStarted = true;
+    setStatus("Camera is on. Point at Hiro marker to test.");
+  }
 
-      window.addEventListener("arjs-video-loaded", () => {
-        setStatus("Camera is on. Point at Hiro marker to test.");
-      });
+  marker.addEventListener("markerFound", () => {
+    setStatus("Marker detected. AR tracking works.");
+  });
 
+  marker.addEventListener("markerLost", () => {
+    setStatus("Marker lost. Re-center marker in view.", false);
+  });
+
+  if (window.location.protocol === "file:") {
+    setStatus("Camera access is blocked on file://. Run from localhost or HTTPS.", false);
+  }
+
+  // AR.js/A-Frame event hooks (different builds emit on different targets)
+  [window, document, scene].forEach((target) => {
+    if (!target || !target.addEventListener) return;
+
+    target.addEventListener("arjs-video-loaded", markCameraStarted);
+    target.addEventListener("camera-init", markCameraStarted);
+    target.addEventListener("loaded", () => {
+      // Fallback: detect the injected webcam video element becoming active.
       setTimeout(() => {
-        if (statusEl.textContent.includes("Initializing")) {
-          setStatus("Waiting for camera permission or camera startup...", false);
+        const video = document.querySelector("video");
+        if (video && video.readyState >= 2) {
+          markCameraStarted();
         }
-      }, 4000);
-    </script>
+      }, 300);
+    });
+    target.addEventListener("camera-error", (event) => {
+      const message = event?.detail?.message || "Camera error. Check browser/site camera permissions.";
+      setStatus(message, false);
+    });
+  });
+
+  // Poll as final fallback for browsers that skip expected custom events.
+  let checks = 0;
+  const checkTimer = setInterval(() => {
+    checks += 1;
+    const video = document.querySelector("video");
+    const running =
+      video &&
+      video.srcObject &&
+      video.srcObject.getVideoTracks().some((t) => t.readyState === "live");
+
+    if (running) {
+      markCameraStarted();
+      clearInterval(checkTimer);
+      return;
+    }
+
+    if (checks >= 12 && !cameraStarted) {
+      setStatus("Waiting for camera permission or camera startup...", false);
+      clearInterval(checkTimer);
+    }
+  }, 1000);
+</script>
   </body>
 </html>

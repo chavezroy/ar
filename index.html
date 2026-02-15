@@ -22,6 +22,7 @@
         font-family: "Trebuchet MS", "Segoe UI", sans-serif;
         color: var(--text);
         background: radial-gradient(circle at 20% 20%, #15314f, var(--bg) 65%);
+        overflow: hidden;
       }
 
       .hud {
@@ -66,6 +67,25 @@
 
       a {
         color: #85ccff;
+      }
+
+      a-scene {
+        position: fixed !important;
+        inset: 0;
+      }
+
+      video,
+      canvas {
+        position: fixed !important;
+        top: 0;
+        left: 0;
+        width: 100vw !important;
+        height: 100dvh !important;
+      }
+
+      video {
+        object-fit: cover;
+        background: #000;
       }
     </style>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
@@ -138,6 +158,35 @@
     setStatus("Camera access is blocked on file://. Run from localhost or HTTPS.", false);
   }
 
+  function getArToolkitSource() {
+    const arSystem = scene?.systems?.arjs;
+    return arSystem?._arToolkitSource || arSystem?.arToolkitSource || null;
+  }
+
+  function normalizeVideoForIOS() {
+    const video = document.querySelector("video");
+    if (!video) return;
+    video.setAttribute("playsinline", "");
+    video.setAttribute("webkit-playsinline", "");
+    video.muted = true;
+  }
+
+  function forceArResize() {
+    const source = getArToolkitSource();
+    const rendererCanvas = scene?.renderer?.domElement;
+    if (!source || !rendererCanvas) return;
+
+    try {
+      source.onResizeElement();
+      source.copyElementSizeTo(rendererCanvas);
+      if (source.arController && source.arController.canvas) {
+        source.copyElementSizeTo(source.arController.canvas);
+      }
+    } catch (_err) {
+      // Keep silent; this may run before AR.js source is fully initialized.
+    }
+  }
+
   // AR.js/A-Frame event hooks (different builds emit on different targets)
   [window, document, scene].forEach((target) => {
     if (!target || !target.addEventListener) return;
@@ -147,6 +196,8 @@
     target.addEventListener("loaded", () => {
       // Fallback: detect the injected webcam video element becoming active.
       setTimeout(() => {
+        normalizeVideoForIOS();
+        forceArResize();
         const video = document.querySelector("video");
         if (video && video.readyState >= 2) {
           markCameraStarted();
@@ -159,6 +210,19 @@
     });
   });
 
+  function handleViewportChange() {
+    // iOS can report stale viewport values right after rotation; retry a few times.
+    [0, 250, 700].forEach((delayMs) => {
+      setTimeout(() => {
+        normalizeVideoForIOS();
+        forceArResize();
+      }, delayMs);
+    });
+  }
+
+  window.addEventListener("resize", handleViewportChange);
+  window.addEventListener("orientationchange", handleViewportChange);
+
   // Poll as final fallback for browsers that skip expected custom events.
   let checks = 0;
   const checkTimer = setInterval(() => {
@@ -170,6 +234,8 @@
       video.srcObject.getVideoTracks().some((t) => t.readyState === "live");
 
     if (running) {
+      normalizeVideoForIOS();
+      forceArResize();
       markCameraStarted();
       clearInterval(checkTimer);
       return;
